@@ -1,9 +1,8 @@
-// lib/pages/auth/login_page.dart
+// lib/auth/login_page.dart (USER APP VERSION)
 
-import 'package:calmreminder/auth/auth_service.dart';
-import 'package:calmreminder/pages/admin/admin_dashboard.dart';
-import 'package:calmreminder/pages/user/user_dashboard.dart';
 import 'package:flutter/material.dart';
+import 'package:calmreminder/auth/auth_service.dart';
+import 'package:calmreminder/pages/user/user_dashboard.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -19,36 +18,51 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   bool _obscurePassword = true;
 
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   Future<void> _handleLogin() async {
-    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
+    // Validasi input kosong
+    if (_emailController.text.trim().isEmpty || _passwordController.text.isEmpty) {
       _showError('Email dan password harus diisi');
       return;
     }
 
     setState(() => _isLoading = true);
 
-    final result = await _authService.signIn(
-      _emailController.text.trim(),
-      _passwordController.text,
-    );
+    try {
+      final result = await _authService.signIn(
+        _emailController.text.trim(),
+        _passwordController.text,
+      );
 
-    setState(() => _isLoading = false);
+      if (!mounted) return;
+      setState(() => _isLoading = false);
 
-    if (result['success']) {
-      // Navigate based on role
-      if (result['role'] == 'admin') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const AdminDashboardPage()),
-        );
+      if (result['success']) {
+        // CEK ROLE: Hanya izinkan jika role adalah 'user'
+        if (result['role'] == 'user') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const DashboardPage()),
+          );
+        } else {
+          // Jika yang login ternyata Admin, tolak akses di aplikasi ini
+          _showError('Akun Admin terdeteksi. Silakan gunakan aplikasi khusus Admin.');
+          // Opsional: tambahkan signout jika sistem auth kamu otomatis menyimpan session
+          // await _authService.signOut();
+        }
       } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const DashboardPage()),
-        );
+        _showError(result['error'] ?? 'Terjadi kesalahan saat login');
       }
-    } else {
-      _showError(result['error']);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showError('Gagal terhubung ke server');
     }
   }
 
@@ -56,7 +70,10 @@ class _LoginPageState extends State<LoginPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Colors.red,
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(10),
       ),
     );
   }
@@ -65,6 +82,8 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -83,7 +102,7 @@ class _LoginPageState extends State<LoginPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Logo
+                  // Logo Container
                   Container(
                     width: 100,
                     height: 100,
@@ -117,9 +136,10 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 8),
 
                   Text(
-                    'Mental Health Monitoring',
+                    'User Application',
                     style: TextStyle(
                       fontSize: 16,
+                      letterSpacing: 1.2,
                       color: Colors.white.withOpacity(0.9),
                     ),
                   ),
@@ -127,62 +147,21 @@ class _LoginPageState extends State<LoginPage> {
                   const SizedBox(height: 48),
 
                   // Email Field
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: TextField(
-                      controller: _emailController,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Email',
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
-                        prefixIcon: const Icon(Icons.email, color: Colors.white),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.all(16),
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                    ),
+                  _buildInputField(
+                    controller: _emailController,
+                    hint: 'Email',
+                    icon: Icons.email_outlined,
+                    keyboardType: TextInputType.emailAddress,
                   ),
 
                   const SizedBox(height: 16),
 
                   // Password Field
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.3),
-                        width: 1,
-                      ),
-                    ),
-                    child: TextField(
-                      controller: _passwordController,
-                      obscureText: _obscurePassword,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Password',
-                        hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
-                        prefixIcon: const Icon(Icons.lock, color: Colors.white),
-                        suffixIcon: IconButton(
-                          icon: Icon(
-                            _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                            color: Colors.white,
-                          ),
-                          onPressed: () {
-                            setState(() => _obscurePassword = !_obscurePassword);
-                          },
-                        ),
-                        border: InputBorder.none,
-                        contentPadding: const EdgeInsets.all(16),
-                      ),
-                    ),
+                  _buildInputField(
+                    controller: _passwordController,
+                    hint: 'Password',
+                    icon: Icons.lock_outline,
+                    isPassword: true,
                   ),
 
                   const SizedBox(height: 32),
@@ -195,26 +174,88 @@ class _LoginPageState extends State<LoginPage> {
                       onPressed: _isLoading ? null : _handleLogin,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF2193B0),
+                        elevation: 4,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                       ),
                       child: _isLoading
-                          ? const CircularProgressIndicator()
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 3,
+                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2193B0)),
+                              ),
+                            )
                           : const Text(
-                              'Login',
+                              'LOGIN',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
-                                color: Color(0xFF2193B0),
                               ),
                             ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 20),
+                  
+                  Text(
+                    '© 2026 Calm Reminder Team',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.6),
+                      fontSize: 12,
                     ),
                   ),
                 ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  // Helper widget untuk input field agar kode lebih bersih
+  Widget _buildInputField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    bool isPassword = false,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: TextField(
+        controller: controller,
+        obscureText: isPassword ? _obscurePassword : false,
+        keyboardType: keyboardType,
+        style: const TextStyle(color: Colors.white),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+          prefixIcon: Icon(icon, color: Colors.white),
+          suffixIcon: isPassword
+              ? IconButton(
+                  icon: Icon(
+                    _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    color: Colors.white,
+                  ),
+                  onPressed: () {
+                    setState(() => _obscurePassword = !_obscurePassword);
+                  },
+                )
+              : null,
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         ),
       ),
     );

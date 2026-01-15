@@ -1,11 +1,12 @@
-// main.dart
-import 'package:calmreminder/auth/login_page.dart';
-import 'package:calmreminder/pages/user/user_dashboard.dart'; // Sesuaikan path ini
-import 'package:calmreminder/pages/admin/admin_dashboard.dart'; // Sesuaikan path ini
+// main.dart (USER APP VERSION)
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+
+// Import local files
 import 'firebase_options.dart';
+import 'auth/login_page.dart';
+import 'pages/user/user_dashboard.dart'; // Pastikan class di file ini bernama DashboardPage
 import 'core/mqtt/mqtt_service.dart';
 
 void main() async {
@@ -30,23 +31,23 @@ class MyApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'Calm Reminder',
+        title: 'Calm Reminder User', // Beri nama pembeda
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           fontFamily: 'Poppins',
           useMaterial3: true,
+          colorSchemeSeed: Colors.blue, // Opsional: bedakan warna tema dengan admin
         ),
-        // Rute awal saat aplikasi dibuka
+        
+        // Rute awal
         initialRoute: '/login',
         
-        // Tabel Rute (Named Routes)
+        // Tabel Rute (Hanya yang relevan untuk User)
         routes: {
           '/login': (context) => const LoginPage(),
           '/user_dashboard': (context) => const DashboardPage(),
-          '/admin_dashboard': (context) => const AdminDashboardPage(),
         },
 
-        // Opsional: Tetap pasang home sebagai fallback
         home: const LoginPage(),
       ),
     );
