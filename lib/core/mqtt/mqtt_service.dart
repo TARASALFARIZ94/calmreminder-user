@@ -1,44 +1,44 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:mqtt_client/mqtt_client.dart';
-// WAJIB: Gunakan MqttBrowserClient untuk Flutter Web
-import 'package:mqtt_client/mqtt_browser_client.dart';
+
+// MENGATASI ERROR: Menggunakan server_client agar bisa jalan di Android/iOS
+import 'package:mqtt_client/mqtt_server_client.dart'; 
 
 import '../models/sensor_data.dart';
 import '../logic/stress_logic.dart';
 
 class MqttService with ChangeNotifier {
-  // Gunakan Browser Client agar tidak crash di Web
   MqttService() {
-    print("DEBUG: MqttService diinisialisasi");
+    print("DEBUG: MqttService diinisialisasi untuk Android/Mobile");
   }
 
-  late MqttBrowserClient client;
+  // Gunakan MqttServerClient (bukan Browser) untuk Android
+  late MqttServerClient client;
   SensorData? latest;
 
   Future<void> connect() async {
-    // 1. Inisialisasi Client dengan URL WSS lengkap (Wajib untuk HiveMQ Cloud di Web)
-    // Format: wss://[HOST]/mqtt
     const String host = '6edfad2acaf04ec9aae0a1e285878cb8.s1.eu.hivemq.cloud';
     
-    client = MqttBrowserClient.withPort(
-      'wss://$host/mqtt', 
-      'flutter_web_client_${DateTime.now().millisecondsSinceEpoch}',
-      8884,
+    // Inisialisasi Server Client
+    client = MqttServerClient.withPort(
+      host, 
+      'flutter_mobile_client_${DateTime.now().millisecondsSinceEpoch}',
+      8883, // Port standar HiveMQ Cloud (SSL)
     );
 
-    // 2. Konfigurasi Protokol dan Keamanan
+    // Konfigurasi Keamanan & Protokol
+    client.secure = true; // WAJIB true untuk HiveMQ Cloud
     client.setProtocolV311();
     client.keepAlivePeriod = 60;
-    client.logging(on: true); // Aktifkan untuk melihat log di Console F12
+    client.logging(on: true);
 
-    // 3. Konfigurasi Pesan Koneksi & Autentikasi
-    // PASTIKAN: Username dan Password sudah dibuat di tab "Access Management" HiveMQ Cloud
+    // Konfigurasi Pesan Koneksi
     final connMessage = MqttConnectMessage()
         .withClientIdentifier(client.clientIdentifier)
         .authenticateAs(
-          'calmreminder', // Ganti dengan Username dari Access Management
-          'Calmreminder123', // Ganti dengan Password dari Access Management
+          'calmreminder', 
+          'Calmreminder123', 
         )
         .startClean()
         .withWillQos(MqttQos.atMostOnce);
@@ -46,7 +46,7 @@ class MqttService with ChangeNotifier {
     client.connectionMessage = connMessage;
 
     try {
-      debugPrint("⏳ Mencoba menyambungkan ke HiveMQ Cloud (Web)...");
+      debugPrint("⏳ Mencoba menyambungkan ke HiveMQ Cloud (Mobile)...");
       await client.connect();
       debugPrint("✅ MQTT Terhubung!");
     } catch (e) {
@@ -55,10 +55,10 @@ class MqttService with ChangeNotifier {
       return;
     }
 
-    // 4. Subscribe ke Topik
+    // Subscribe
     client.subscribe('sensor/data/calmreminder', MqttQos.atMostOnce);
 
-    // 5. Listen Data Masuk
+    // Listen Data
     client.updates!.listen((List<MqttReceivedMessage<MqttMessage>> events) {
       final MqttPublishMessage recMess = events[0].payload as MqttPublishMessage;
       final String payload = MqttPublishPayload.bytesToStringAsString(
@@ -71,7 +71,6 @@ class MqttService with ChangeNotifier {
         final Map<String, dynamic> jsonData = jsonDecode(payload);
         SensorData data = SensorData.fromJson(jsonData);
 
-        // Analisis Stress menggunakan logika yang ada
         final stress = StressLogic.analyze(
           heartRate: data.heartRate,
           temp: data.temp,
@@ -80,7 +79,6 @@ class MqttService with ChangeNotifier {
           accZ: data.accZ,
         );
 
-        // Update data terbaru dan beri tahu Dashboard
         latest = data.copyWithStress(stress);
         notifyListeners();
         

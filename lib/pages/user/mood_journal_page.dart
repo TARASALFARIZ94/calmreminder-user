@@ -22,19 +22,33 @@ class _MoodJournalPageState extends State<MoodJournalPage> {
     _loadEntries();
   }
 
+  // Mengambil data dari Firestore melalui Service
   Future<void> _loadEntries() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
-    final entries = await JournalService.getEntries();
-    setState(() {
-      _entries = entries;
-      _isLoading = false;
-    });
+    try {
+      final entries = await JournalService.getEntries();
+      if (!mounted) return;
+      setState(() {
+        _entries = entries;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error loading data: $e')),
+      );
+    }
   }
 
-  void _showAddEntryDialog() async {
-    String selectedMood = '😊';
-    String note = '';
-    String selectedStress = 'Relax';
+  // Dialog yang berfungsi ganda untuk Tambah dan Edit
+  void _showJournalDialog({JournalEntry? existingEntry}) async {
+    final bool isEdit = existingEntry != null;
+    String selectedMood = existingEntry?.mood ?? '😊';
+    String selectedStress = existingEntry?.stressLevel ?? 'Relax';
+    final TextEditingController noteController = 
+        TextEditingController(text: existingEntry?.note ?? '');
 
     final result = await showDialog<bool>(
       context: context,
@@ -57,9 +71,9 @@ class _MoodJournalPageState extends State<MoodJournalPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'New Journal Entry',
-                      style: TextStyle(
+                    Text(
+                      isEdit ? 'Update Journal' : 'New Journal Entry',
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -67,201 +81,138 @@ class _MoodJournalPageState extends State<MoodJournalPage> {
                     ),
                     const SizedBox(height: 24),
 
-                    // Mood Selection
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'How are you feeling?',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: ['😊', '😐', '😰', '😢', '😤'].map((emoji) {
-                              return GestureDetector(
-                                onTap: () {
-                                  setDialogState(() => selectedMood = emoji);
-                                },
-                                child: Container(
-                                  width: 50,
-                                  height: 50,
-                                  decoration: BoxDecoration(
+                   // Mood Selection
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+                    width: double.infinity, // Pastikan mengambil lebar penuh
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withOpacity(0.3)),
+                    ),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        return Wrap(
+                          alignment: WrapAlignment.spaceEvenly,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 8, // Jarak antar emoji secara horizontal
+                          runSpacing: 12, // Jarak antar baris jika terpaksa turun
+                          children: ['😊', '😐', '😰', '😢', '😤'].map((emoji) {
+                            return GestureDetector(
+                              onTap: () => setDialogState(() => selectedMood = emoji),
+                              child: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: selectedMood == emoji
+                                      ? Colors.white24
+                                      : Colors.transparent,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
                                     color: selectedMood == emoji
-                                        ? Colors.white.withOpacity(0.3)
+                                        ? Colors.white
                                         : Colors.transparent,
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: selectedMood == emoji
-                                          ? Colors.white
-                                          : Colors.transparent,
-                                      width: 2,
-                                    ),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      emoji,
-                                      style: const TextStyle(fontSize: 28),
-                                    ),
                                   ),
                                 ),
-                              );
-                            }).toList(),
-                          ),
-                        ],
-                      ),
+                                child: Text(
+                                  emoji,
+                                  style: const TextStyle(fontSize: 24), // Ukuran sedikit diperkecil agar lebih aman
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        );
+                      },
                     ),
+                  ),
 
                     const SizedBox(height: 16),
 
-                    // Stress Level Selection
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
-                          width: 1,
+                    // Stress Level Dropdown
+                    DropdownButtonFormField<String>(
+                      value: selectedStress,
+                      dropdownColor: const Color(0xFF8B5CF6),
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        labelText: 'Stress Level',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.2),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
                         ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Stress Level',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          DropdownButtonFormField<String>(
-                            value: selectedStress,
-                            dropdownColor: const Color(0xFF8B5CF6),
-                            decoration: const InputDecoration(
-                              border: OutlineInputBorder(
-                                borderSide: BorderSide.none,
-                              ),
-                              filled: true,
-                              fillColor: Colors.white24,
-                            ),
-                            style: const TextStyle(color: Colors.white),
-                            items: ['Relax', 'Mild Stress', 'High Stress']
-                                .map((level) => DropdownMenuItem(
-                                      value: level,
-                                      child: Text(level),
-                                    ))
-                                .toList(),
-                            onChanged: (value) {
-                              if (value != null) {
-                                setDialogState(() => selectedStress = value);
-                              }
-                            },
-                          ),
-                        ],
-                      ),
+                      items: ['Relax', 'Mild Stress', 'High Stress']
+                          .map((l) => DropdownMenuItem(value: l, child: Text(l)))
+                          .toList(),
+                      onChanged: (v) => setDialogState(() => selectedStress = v!),
                     ),
 
                     const SizedBox(height: 16),
 
                     // Note Input
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
-                          width: 1,
+                    TextField(
+                      controller: noteController,
+                      maxLines: 4,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'How was your day?',
+                        hintStyle: const TextStyle(color: Colors.white60),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.2),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          borderSide: BorderSide.none,
                         ),
-                      ),
-                      child: TextField(
-                        maxLines: 5,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: const InputDecoration(
-                          hintText: 'Write your thoughts here...',
-                          hintStyle: TextStyle(color: Colors.white60),
-                          border: InputBorder.none,
-                        ),
-                        onChanged: (value) => note = value,
                       ),
                     ),
 
                     const SizedBox(height: 24),
 
-                    // Buttons
                     Row(
                       children: [
                         Expanded(
                           child: TextButton(
                             onPressed: () => Navigator.pop(context, false),
-                            style: TextButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              backgroundColor: Colors.white.withOpacity(0.2),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: const Text(
-                              'Cancel',
-                              style: TextStyle(color: Colors.white),
-                            ),
+                            child: const Text('Cancel', style: TextStyle(color: Colors.white)),
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.white),
                             onPressed: () async {
-                              if (note.trim().isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Please write something'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                                return;
-                              }
+                              if (noteController.text.isEmpty) return;
 
-                              final timestamp = await TimeService.getCurrentTime();
+                              // Tetap menggunakan TimeService API
+                              final timestamp = isEdit 
+                                  ? existingEntry.timestamp 
+                                  : (await TimeService.getCurrentTime() ?? DateTime.now());
+                              
                               final entry = JournalEntry(
-                                id: DateTime.now().millisecondsSinceEpoch.toString(),
+                                id: isEdit 
+                                    ? existingEntry.id 
+                                    : DateTime.now().millisecondsSinceEpoch.toString(),
                                 mood: selectedMood,
-                                note: note,
-                                timestamp: timestamp ?? DateTime.now(),
+                                note: noteController.text,
+                                timestamp: timestamp,
                                 stressLevel: selectedStress,
                               );
 
-                              await JournalService.saveEntry(entry);
+                              if (isEdit) {
+                                await JournalService.updateEntry(entry);
+                              } else {
+                                await JournalService.saveEntry(entry);
+                              }
+                              
+                              if (!context.mounted) return;
                               Navigator.pop(context, true);
                             },
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              backgroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            child: const Text(
-                              'Save',
-                              style: TextStyle(
-                                color: Color(0xFF8B5CF6),
-                                fontWeight: FontWeight.bold,
+                            child: Text(
+                              isEdit ? 'Update' : 'Save',
+                              style: const TextStyle(
+                                color: Color(0xFF8B5CF6), 
+                                fontWeight: FontWeight.bold
                               ),
                             ),
                           ),
@@ -277,9 +228,7 @@ class _MoodJournalPageState extends State<MoodJournalPage> {
       ),
     );
 
-    if (result == true) {
-      _loadEntries();
-    }
+    if (result == true) _loadEntries();
   }
 
   @override
@@ -288,19 +237,13 @@ class _MoodJournalPageState extends State<MoodJournalPage> {
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFFA78BFA),
-              Color(0xFF8B5CF6),
-              Color(0xFF7C3AED),
-            ],
+            colors: [Color(0xFFA78BFA), Color(0xFF8B5CF6), Color(0xFF7C3AED)],
           ),
         ),
         child: SafeArea(
           child: Column(
             children: [
-              // App Bar
+              // Custom App Bar
               Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Row(
@@ -310,64 +253,32 @@ class _MoodJournalPageState extends State<MoodJournalPage> {
                       onPressed: () => Navigator.pop(context),
                     ),
                     const Text(
-                      'Mood Journal',
+                      'Mood Journal', 
                       style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                        color: Colors.white, 
+                        fontSize: 20, 
+                        fontWeight: FontWeight.bold
+                      )
                     ),
                     const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.add_circle, color: Colors.white, size: 32),
-                      onPressed: _showAddEntryDialog,
+                      onPressed: () => _showJournalDialog(),
                     ),
                   ],
                 ),
               ),
 
-              // Content
+              // Bagian List
               Expanded(
                 child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(color: Colors.white),
-                      )
+                    ? const Center(child: CircularProgressIndicator(color: Colors.white))
                     : _entries.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Text(
-                                  '📝',
-                                  style: TextStyle(fontSize: 80),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  'No journal entries yet',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.8),
-                                    fontSize: 18,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                TextButton.icon(
-                                  onPressed: _showAddEntryDialog,
-                                  icon: const Icon(Icons.add, color: Colors.white),
-                                  label: const Text(
-                                    'Write your first entry',
-                                    style: TextStyle(color: Colors.white),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
+                        ? _buildEmptyState()
                         : ListView.builder(
                             padding: const EdgeInsets.all(16),
                             itemCount: _entries.length,
-                            itemBuilder: (context, index) {
-                              final entry = _entries[index];
-                              return _buildJournalCard(entry);
-                            },
+                            itemBuilder: (context, index) => _buildJournalCard(_entries[index]),
                           ),
               ),
             ],
@@ -377,110 +288,108 @@ class _MoodJournalPageState extends State<MoodJournalPage> {
     );
   }
 
-  Widget _buildJournalCard(JournalEntry entry) {
-    Color getStressColor() {
-      if (entry.stressLevel == 'Relax') return Colors.green;
-      if (entry.stressLevel == 'Mild Stress') return Colors.orange;
-      return Colors.red;
-    }
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text('📝', style: TextStyle(fontSize: 80)),
+          const SizedBox(height: 16),
+          const Text('No entries yet', style: TextStyle(color: Colors.white70, fontSize: 18)),
+          TextButton.icon(
+            onPressed: () => _showJournalDialog(),
+            icon: const Icon(Icons.add, color: Colors.white),
+            label: const Text('Write first entry', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
 
+  Widget _buildJournalCard(JournalEntry entry) {
     return Dismissible(
       key: Key(entry.id),
       direction: DismissDirection.endToStart,
-      background: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        decoration: BoxDecoration(
-          color: Colors.red,
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: const Icon(Icons.delete, color: Colors.white),
-      ),
-      onDismissed: (direction) async {
-        await JournalService.deleteEntry(entry.id);
-        _loadEntries();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Entry deleted'),
-            backgroundColor: Colors.red,
+      confirmDismiss: (direction) async {
+        // Dialog Konfirmasi Hapus
+        return await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Delete Entry?'),
+            content: const Text('This action cannot be undone.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false), 
+                child: const Text('Cancel')
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true), 
+                child: const Text('Delete', style: TextStyle(color: Colors.red))
+              ),
+            ],
           ),
         );
       },
-      child: Container(
+      onDismissed: (direction) async {
+        await JournalService.deleteEntry(entry.id);
+        _loadEntries();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Entry deleted'), backgroundColor: Colors.redAccent),
+        );
+      },
+      background: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Colors.white.withOpacity(0.3),
-            width: 1,
-          ),
+          color: Colors.red.withOpacity(0.8), 
+          borderRadius: BorderRadius.circular(16)
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  entry.mood,
-                  style: const TextStyle(fontSize: 32),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: getStressColor().withOpacity(0.3),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: getStressColor(),
-                                width: 1,
-                              ),
-                            ),
-                            child: Text(
-                              entry.stressLevel,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        TimeService.formatDateTime(entry.timestamp),
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 12,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete, color: Colors.white),
+      ),
+      child: GestureDetector(
+        onTap: () => _showJournalDialog(existingEntry: entry), // Navigasi ke Edit
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(entry.mood, style: const TextStyle(fontSize: 32)),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          entry.stressLevel, 
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
                         ),
-                      ),
-                    ],
+                        Text(
+                          TimeService.formatDateTime(entry.timestamp),
+                          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              entry.note,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                height: 1.4,
+                  const Icon(Icons.edit, color: Colors.white54, size: 16),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Text(
+                entry.note, 
+                style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4)
+              ),
+            ],
+          ),
         ),
       ),
     );
