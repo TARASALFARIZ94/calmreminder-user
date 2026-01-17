@@ -4,7 +4,8 @@ import 'package:url_launcher/url_launcher.dart';
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
 
-  final String youtubeUrl = 'https://youtube.com/shorts/X79H4L6PUFw?feature=share';
+  // YouTube demo URL
+  final String youtubeUrl = 'https://youtu.be/etwaqQ06sfM';
 
   Future<void> _launchURL() async {
     final Uri url = Uri.parse(youtubeUrl);
